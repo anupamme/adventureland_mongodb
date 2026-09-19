@@ -719,7 +719,7 @@ pub fn run() {
                 init_steam(steam_client, steam_ticket, steam_error, steam_purchases, language);
             });
 
-            WebviewWindowBuilder::new(app, "loader", tauri::WebviewUrl::App("loader.html".into()))
+            let _loader = WebviewWindowBuilder::new(app, "loader", tauri::WebviewUrl::App("loader.html".into()))
                 .title("Adventure Land")
                 .inner_size(WIN_WIDTH, WIN_HEIGHT)
                 .visible(false)
@@ -730,6 +730,21 @@ pub fn run() {
                     }
                 })
                 .build()?;
+
+            // Linux windows share this WebContext. Configure it before the game
+            // loads so CODE can import HTTP scripts, including from LAN servers.
+            // This trusts all HTTP origins; TLS checks and same-origin rules stay enabled.
+            #[cfg(target_os = "linux")]
+            if let Err(error) = _loader.with_webview(|webview| {
+                use webkit2gtk::{SecurityManagerExt, WebContextExt, WebViewExt};
+                if let Some(manager) = webview.inner().context().and_then(|context| context.security_manager()) {
+                    manager.register_uri_scheme_as_secure("http");
+                } else {
+                    eprintln!("[Tauri] HTTP scripts remain blocked: WebKit security manager unavailable");
+                }
+            }) {
+                eprintln!("[Tauri] HTTP scripts remain blocked: {error}");
+            }
 
             let page_load_handle = app.handle().clone();
             let main = WebviewWindowBuilder::new(
