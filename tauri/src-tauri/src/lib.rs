@@ -770,8 +770,12 @@ pub fn run() {
                     if !startup_page_finished(payload.url(), compatibility, state.compatibility_committed.load(Ordering::Relaxed)) {
                         return;
                     }
-                    state.startup_finished.store(true, Ordering::Relaxed);
                     let _ = window.set_title("Adventure Land");
+                    // Only hand off the loader once. Background reloads must not
+                    // raise the game window or take focus from another app.
+                    if state.startup_finished.swap(true, Ordering::Relaxed) {
+                        return;
+                    }
                     if let Some(loader) = page_load_handle.get_webview_window("loader") {
                         let _ = loader.close();
                     }
